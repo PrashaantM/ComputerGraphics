@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Super Bug Zapper</title>
+
+<script src="webgl-utils.js"></script>
+<script src="initShaders.js"></script>
+<script src="MV.js"></script>
+
+
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec4 vPosition;
+attribute vec4 vColor;
+
+varying vec4 fColor;
+
+void main() {
+    gl_Position = vPosition;
+    fColor = vColor;
+}
+</script>
+
+
+
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+
+varying vec4 fColor;
+
+void main() {
+    gl_FragColor = fColor;
+}
+</script>
+
+<script src="bug.js"></script>
+
+</head>
+
+<body onload="init()">
+
+<h2>Super Bug Zapper – Assignment 1</h2>
+
+<canvas id="gl-canvas" width="600" height="600">
+Your browser doesn't support HTML5 canvas
+</canvas>
+
+</body>
+</html>
