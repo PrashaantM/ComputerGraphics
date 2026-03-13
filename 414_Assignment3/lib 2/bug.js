@@ -154,30 +154,30 @@ function init() {
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // Build geometry fresh each frame so rotation matrix is always applied
+   
     var sphere = buildSphere();
     var dots   = buildDots();
 
-    // Merge everything into one flat array
+
     var allPoints = sphere.points.concat(dots.points);
     var allColors = sphere.colors.concat(dots.colors);
     var dotOffset = sphere.points.length;
 
-    // Upload positions
+
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(allPoints), gl.DYNAMIC_DRAW);
     var vPosition = gl.getAttribLocation(program, "vPosition");
     gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vPosition);
 
-    // Upload colors
+
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(allColors), gl.DYNAMIC_DRAW);
     var vColor = gl.getAttribLocation(program, "vColor");
     gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vColor);
 
-    // Set rotation uniform
+    // Set rotation
     var uMatrix = gl.getUniformLocation(program, "uMatrix");
     gl.uniformMatrix4fv(uMatrix, false, flatten(rotationMatrix));
 
