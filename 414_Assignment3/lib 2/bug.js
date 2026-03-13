@@ -11,7 +11,9 @@ var colorBuffer;
 var DISK_RADIUS = 0.8;
 
 
-
+var rotationMatrix = mat4(); // Current rotation state
+var dragging = false;
+var lastX, lastY;
 
 
 function createBug() {
@@ -105,6 +107,32 @@ function buildGeometry() {
 
 
 
+//fcn to create the sphere
+
+function buildSphere(radius, latBands, longBands) {
+    var points = [];
+    var colors = [];
+    
+    for (var lat = 0; lat <= latBands; lat++) {
+        var theta = lat * Math.PI / latBands;
+        var sinTheta = Math.sin(theta);
+        var cosTheta = Math.cos(theta);
+
+        for (var lon = 0; lon <= longBands; lon++) {
+            var phi = lon * 2 * Math.PI / longBands;
+            var x = radius * Math.cos(phi) * sinTheta;
+            var y = radius * cosTheta;
+            var z = radius * Math.sin(phi) * sinTheta;
+
+            points.push(vec4(x, y, z, 1.0));
+            colors.push(vec4(0.0, 0.8, 0.2, 1.0)); 
+        }
+    }
+    return { p: points, c: colors };
+}
+
+
+
 
 
 
@@ -125,6 +153,36 @@ function init() {
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
+
+    // adding user's mouse controls for rotation
+
+    canvas.onmousedown = function(ev) {
+        var x = ev.clientX, y = ev.clientY;
+        var rect = ev.target.getBoundingClientRect();
+        if (rect.left <= x && x < rect.right && rect.top <= y && y < rect.bottom) {
+            lastX = x; lastY = y;
+            dragging = true;
+        }
+    };
+
+    canvas.onmouseup = function(ev) { dragging = false; };
+
+    canvas.onmousemove = function(ev) {
+        if (dragging) {
+            var x = ev.clientX, y = ev.clientY;
+            var factor = 100 / canvas.height; // Rotation speed
+            var dx = factor * (x - lastX);
+            var dy = factor * (y - lastY);
+
+            // updating the rotation matrix
+            rotationMatrix = mult(rotateX(dy), rotationMatrix);
+            rotationMatrix = mult(rotateY(dx), rotationMatrix);
+            
+            lastX = x; lastY = y;
+        }
+    };
+
+
     positionBuffer = gl.createBuffer();
     colorBuffer = gl.createBuffer();
 
@@ -138,42 +196,77 @@ function init() {
 
 function render() {
 
-    gl.clear(gl.COLOR_BUFFER_BIT);
 
-    updateBugs();
 
-    var geo = buildGeometry();
+gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // bug positions
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(geo.p), gl.STATIC_DRAW);
 
-    var vPosition = gl.getAttribLocation(program, "vPosition");
-    gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPosition);
 
-    // bug colors
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(geo.c), gl.STATIC_DRAW);
+updateBugs();
 
-    var vColor = gl.getAttribLocation(program, "vColor");
-    gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vColor);
 
-    var numSegments = 60;
 
-    // making the disk
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, numSegments);
+var geo = buildGeometry();
 
-    // spawning the bugs
-    for (var i = 0; i < bugs.length; i++) {
 
-        gl.drawArrays(
-            gl.TRIANGLE_FAN,
-            numSegments + i * numSegments,
-            numSegments
-        );
-    }
 
-    requestAnimationFrame(render);
+// bug positions
+
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+gl.bufferData(gl.ARRAY_BUFFER, flatten(geo.p), gl.STATIC_DRAW);
+
+
+
+var vPosition = gl.getAttribLocation(program, "vPosition");
+
+gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
+
+gl.enableVertexAttribArray(vPosition);
+
+
+
+// bug colors
+
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+
+gl.bufferData(gl.ARRAY_BUFFER, flatten(geo.c), gl.STATIC_DRAW);
+
+
+
+var vColor = gl.getAttribLocation(program, "vColor");
+
+gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
+
+gl.enableVertexAttribArray(vColor);
+
+
+
+var numSegments = 60;
+
+
+
+// making the disk
+
+gl.drawArrays(gl.TRIANGLE_FAN, 0, numSegments);
+
+
+
+// spawning the bugs
+
+for (var i = 0; i < bugs.length; i++) {
+
+
+
+gl.drawArrays(
+
+gl.TRIANGLE_FAN,
+
+numSegments + i * numSegments,
+
+numSegments
+
+);
+
+}
 }
