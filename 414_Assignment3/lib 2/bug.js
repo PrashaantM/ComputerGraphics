@@ -1,23 +1,20 @@
 var gl;
 var program;
-
+ 
 var maxBugs = 25;
 var bugs = [];
-
+ 
 var positionBuffer;
 var colorBuffer;
-
-
+ 
 var DISK_RADIUS = 0.8;
-
-
+ 
 var rotationMatrix = mat4(); // Current rotation state
 var dragging = false;
 var lastX, lastY;
-
-
+ 
+ 
 function createBug() {
-
     // Start on circumference of main disk
     var angle = Math.random() * 2 * Math.PI;
 
@@ -28,29 +25,18 @@ function createBug() {
         radius: 0.02,
         growth: Math.random() * 0.003 + 0.001,
 
-        color: vec4(
-            Math.random(),
-            Math.random(),
-            Math.random(),
-            1.0
-        )
+        color: vec4(Math.random(), Math.random(), Math.random(), 1.0)
     };
-
     bugs.push(bug);
 }
-
-
-
-
-
+ 
+ 
 function updateBugs() {
-
     if (bugs.length < maxBugs && Math.random() < 0.05) {
         createBug();
     }
 
     for (var i = 0; i < bugs.length; i++) {
-
         bugs[i].radius += bugs[i].growth;
 
         if (bugs[i].radius > 0.18) {
@@ -58,104 +44,65 @@ function updateBugs() {
         }
     }
 }
-
-
-
-
-
-function buildGeometry() {
-
-    var points = [];
-    var colors = [];
-
-    var numSegments = 60;
-
-    // -------- 1. MAIN WHITE DISK --------
-    for (var i = 0; i < numSegments; i++) {
-
-        var angle = 2 * Math.PI * i / numSegments;
-
-        var x = DISK_RADIUS * Math.cos(angle);
-        var y = DISK_RADIUS * Math.sin(angle);
-
-        points.push(vec2(x, y));
-        colors.push(vec4(1, 1, 1, 1));   // WHITE
-    }
-
-    // -------- 2. BACTERIA --------
-    for (var b = 0; b < bugs.length; b++) {
-
-        var bug = bugs[b];
-
-        for (var i = 0; i < numSegments; i++) {
-
-            var angle = 2 * Math.PI * i / numSegments;
-
-            var x = bug.x + bug.radius * Math.cos(angle);
-            var y = bug.y + bug.radius * Math.sin(angle);
-
-            points.push(vec2(x, y));
-            colors.push(bug.color);
-        }
-    }
-
-    return {
-        p: points,
-        c: colors
-    };
-}
-
-
-
-//fcn to create the sphere
+ 
+ 
+//added for 3D sphere instead
 
 function buildSphere(radius, latBands, longBands) {
-    var points = [];
-    var colors = [];
-    
-    for (var lat = 0; lat <= latBands; lat++) {
-        var theta = lat * Math.PI / latBands;
-        var sinTheta = Math.sin(theta);
-        var cosTheta = Math.cos(theta);
-
+    var strips = []; // array of { points, colors } per latitude band
+ 
+    for (var lat = 0; lat < latBands; lat++) {
+        var points = [];
+        var colors = [];
+ 
         for (var lon = 0; lon <= longBands; lon++) {
             var phi = lon * 2 * Math.PI / longBands;
-            var x = radius * Math.cos(phi) * sinTheta;
-            var y = radius * cosTheta;
-            var z = radius * Math.sin(phi) * sinTheta;
+            var cosPhi = Math.cos(phi);
+            var sinPhi = Math.sin(phi);
+ 
+            // Top vertex of this quad (row lat)
+            var theta1 = lat * Math.PI / latBands;
+            var x1 = radius * Math.cos(phi) * Math.sin(theta1);
+            var y1 = radius * Math.cos(theta1);
+            var z1 = radius * Math.sin(phi) * Math.sin(theta1);
+ 
+            // Bottom vertex of this quad (row lat+1)
+            var theta2 = (lat + 1) * Math.PI / latBands;
+            var x2 = radius * Math.cos(phi) * Math.sin(theta2);
+            var y2 = radius * Math.cos(theta2);
+            var z2 = radius * Math.sin(phi) * Math.sin(theta2);
+ 
 
-            points.push(vec4(x, y, z, 1.0));
-            colors.push(vec4(0.0, 0.8, 0.2, 1.0)); 
+            points.push(vec4(x1, y1, z1, 1.0));
+            colors.push(vec4(0.0, 0.8, 0.2, 1.0));
+ 
+            points.push(vec4(x2, y2, z2, 1.0));
+            colors.push(vec4(0.0, 0.6, 0.9, 1.0)); // slightly different shade for depth
         }
+ 
+        strips.push({ p: points, c: colors });
     }
-    return { p: points, c: colors };
+ 
+    return strips; // array of per-band strips
 }
-
-
-
-
-
-
+ 
+ 
 function init() {
-
     var canvas = document.getElementById("gl-canvas");
-
+ 
     gl = WebGLUtils.setupWebGL(canvas);
-
     if (!gl) {
         alert("WebGL not available");
         return;
     }
-
+ 
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.1, 0.1, 0.1, 1.0); // dark grey background
-
+    gl.clearColor(0.1, 0.1, 0.1, 1.0);
+ 
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
-
-
-    // adding user's mouse controls for rotation
-
+ 
+    // Mouse controls for rotation
     canvas.onmousedown = function(ev) {
         var x = ev.clientX, y = ev.clientY;
         var rect = ev.target.getBoundingClientRect();
@@ -164,109 +111,63 @@ function init() {
             dragging = true;
         }
     };
-
+ 
     canvas.onmouseup = function(ev) { dragging = false; };
-
+ 
     canvas.onmousemove = function(ev) {
         if (dragging) {
             var x = ev.clientX, y = ev.clientY;
-            var factor = 100 / canvas.height; // Rotation speed
+            var factor = 100 / canvas.height;
             var dx = factor * (x - lastX);
             var dy = factor * (y - lastY);
-
-            // updating the rotation matrix
+ 
             rotationMatrix = mult(rotateX(dy), rotationMatrix);
             rotationMatrix = mult(rotateY(dx), rotationMatrix);
-            
+ 
             lastX = x; lastY = y;
         }
     };
-
-
+ 
     positionBuffer = gl.createBuffer();
     colorBuffer = gl.createBuffer();
-
+ 
     render();
 }
-
-
-
-
-
-
+ 
+ 
 function render() {
-
-
-
-gl.clear(gl.COLOR_BUFFER_BIT);
-
-
-
-updateBugs();
-
-
-
-var geo = buildGeometry();
-
-
-
-// bug positions
-
-gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-gl.bufferData(gl.ARRAY_BUFFER, flatten(geo.p), gl.STATIC_DRAW);
-
-
-
-var vPosition = gl.getAttribLocation(program, "vPosition");
-
-gl.vertexAttribPointer(vPosition, 2, gl.FLOAT, false, 0, 0);
-
-gl.enableVertexAttribArray(vPosition);
-
-
-
-// bug colors
-
-gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-
-gl.bufferData(gl.ARRAY_BUFFER, flatten(geo.c), gl.STATIC_DRAW);
-
-
-
-var vColor = gl.getAttribLocation(program, "vColor");
-
-gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
-
-gl.enableVertexAttribArray(vColor);
-
-
-
-var numSegments = 60;
-
-
-
-// making the disk
-
-gl.drawArrays(gl.TRIANGLE_FAN, 0, numSegments);
-
-
-
-// spawning the bugs
-
-for (var i = 0; i < bugs.length; i++) {
-
-
-
-gl.drawArrays(
-
-gl.TRIANGLE_FAN,
-
-numSegments + i * numSegments,
-
-numSegments
-
-);
-
-}
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+ 
+    // Set rotation uniform
+    var uMatrixLoc = gl.getUniformLocation(program, "uMatrix");
+    gl.uniformMatrix4fv(uMatrixLoc, false, flatten(rotationMatrix));
+ 
+    var vPosition = gl.getAttribLocation(program, "vPosition");
+    var vColor = gl.getAttribLocation(program, "vColor");
+ 
+    // Build sphere as per-band strips
+    var strips = buildSphere(0.5, 30, 30);
+ 
+    for (var i = 0; i < strips.length; i++) {
+        var strip = strips[i];
+ 
+        // Upload positions
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(strip.p), gl.DYNAMIC_DRAW);
+        gl.vertexAttribPointer(vPosition, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(vPosition);
+ 
+        // Upload colors
+        gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, flatten(strip.c), gl.DYNAMIC_DRAW);
+        gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(vColor);
+ 
+        // Draw this band as a complete TRIANGLE_STRIP
+        // Each band has (longBands + 1) * 2 vertices
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, strip.p.length);
+    }
+ 
+    requestAnimationFrame(render);
 }
